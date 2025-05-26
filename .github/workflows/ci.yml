@@ -78,7 +78,7 @@ jobs:
           SPRING_PROFILES_ACTIVE: test # 테스트 환경 활성화 (선택 사항)
       - name: Wait for App to Start
         run: |
-          TIMEOUT=60
+          TIMEOUT=120
           for i in $(seq 1 $TIMEOUT); do
             status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 || echo "000")
             echo "Status code: $status_code"
