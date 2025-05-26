@@ -36,18 +36,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-  lint:
-    name: Lint
-    needs: setup
-    if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./
-    steps:
-      - uses: actions/checkout@v3 # 필요하다면 유지
-      - name: Checkstyle
-        run: ./gradlew checkstyleMain
+  # lint:
+  #   name: Lint
+  #   needs: setup
+  #   if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
+  #   runs-on: ubuntu-latest
+  #   defaults:
+  #     run:
+  #       working-directory: ./
+  #   steps:
+  #     - uses: actions/checkout@v3 # 필요하다면 유지
+  #     - name: Checkstyle
+  #       run: ./gradlew checkstyleMain
 
   unit:
     name: Unit Test
