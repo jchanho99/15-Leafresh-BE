@@ -99,7 +99,7 @@ jobs:
 
   build-dev:
     name: Build and Push Backend Docker (develop only)
-    needs: [lint, unit, setup]
+    needs: [unit, setup]
     if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
     runs-on: ubuntu-latest
     defaults:
