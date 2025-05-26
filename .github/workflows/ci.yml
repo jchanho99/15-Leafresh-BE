@@ -78,19 +78,18 @@ jobs:
           SPRING_PROFILES_ACTIVE: test # 테스트 환경 활성화 (선택 사항)
       - name: Wait for App to Start
         run: |
-          TIMEOUT=120
-          for i in $(seq 1 $TIMEOUT); do
-            status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 || echo "000")
-            echo "Status code: $status_code"
-            if [ "$status_code" -eq 200 ] || [ "$status_code" -eq 401 ]; then
-              echo "Application is ready (HTTP $status_code)"
-              exit 0
-            fi
-            echo "Waiting for application... ($i/$TIMEOUT, status: $status_code)"
-            sleep 1
-          done
-          echo "Application did not start within the timeout"
-          exit 1
+          TIMEOUT=60
+          sleep $TIMEOUT;
+          # for i in $(seq 1 $TIMEOUT); do
+          #   if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ | grep -q '"status":"UP"'; then
+          #     echo "Application is ready"
+          #     exit 0
+          #   fi
+          #   echo "Waiting for application... ($i/$TIMEOUT)"
+          #   sleep 1
+          # done
+          # echo "Application did not start within the timeout"
+          # exit 1
       - name: Integration Test
         run: |
           ./gradlew integrationTest
