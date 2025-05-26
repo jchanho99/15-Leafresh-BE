@@ -80,12 +80,13 @@ jobs:
         run: |
           TIMEOUT=60
           for i in $(seq 1 $TIMEOUT); do
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ | grep -q '"status":"UP"'; then
-              echo "Application is ready"
+            status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080)
+            if [ "$status_code" -eq 200 ] || [ "$status_code" -eq 401 ]; then
+              echo "Application is ready (HTTP $status_code)"
               exit 0
             fi
-            echo "Waiting for application... ($i/$TIMEOUT)"
-            sleep 1
+          echo "Waiting for application... ($i/$TIMEOUT, status: $status_code)"
+          sleep 1
           done
           echo "Application did not start within the timeout"
           exit 1
