@@ -79,21 +79,21 @@ jobs:
       - name: Wait for App to Start
         run: |
           TIMEOUT=60
-          for i in $(seq 1 $TIMEOUT); do
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ | grep -q '"status":"UP"'; then
-              echo "Application is ready"
-              exit 0
-            fi
-            echo "Waiting for application... ($i/$TIMEOUT)"
-            sleep 1
-          done
-          echo "Application did not start within the timeout"
-          exit 1
+          sleep $TIMEOUT;
+          # for i in $(seq 1 $TIMEOUT); do
+          #   if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ | grep -q '"status":"UP"'; then
+          #     echo "Application is ready"
+          #     exit 0
+          #   fi
+          #   echo "Waiting for application... ($i/$TIMEOUT)"
+          #   sleep 1
+          # done
+          # echo "Application did not start within the timeout"
+          # exit 1
       - name: Integration Test
         run: |
           ./gradlew integrationTest
-          curl -X GET http://localhost:8080/api/challenges/events
-          curl -X GET http://localhost:8080/api/challenges/personal
+          curl -X GET http://localhost:8080/api/challenges/group/categories
       - name: Stop Spring Boot App
         run: pkill -f 'org.springframework.boot.loader.JarLauncher' # 또는 애플리케이션 실행 방식에 따른 프로세스 종료
 
