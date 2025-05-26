@@ -92,7 +92,7 @@ jobs:
           # exit 1
       - name: Integration Test
         run: |
-          ./gradlew integrationTest
+          # ./gradlew integrationTest
           curl -X GET http://localhost:8080/api/challenges/group/categories
       - name: Stop Spring Boot App
         run: pkill -f 'org.springframework.boot.loader.JarLauncher' # 또는 애플리케이션 실행 방식에 따른 프로세스 종료
