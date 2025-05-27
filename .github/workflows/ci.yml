@@ -72,27 +72,15 @@ jobs:
         working-directory: ./
     steps:
       - uses: actions/checkout@v3 # 필요하다면 유지
+      - name: Build Spring Boot App
+        run: ./gradlew bootJar
       - name: Start Spring Boot App
-        run: ./gradlew bootRun &
-        env:
-          SPRING_PROFILES_ACTIVE: test # 테스트 환경 활성화 (선택 사항)
-      - name: Wait for App to Start
         run: |
-          TIMEOUT=60
-          sleep $TIMEOUT;
-          # for i in $(seq 1 $TIMEOUT); do
-          #   if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/ | grep -q '"status":"UP"'; then
-          #     echo "Application is ready"
-          #     exit 0
-          #   fi
-          #   echo "Waiting for application... ($i/$TIMEOUT)"
-          #   sleep 1
-          # done
-          # echo "Application did not start within the timeout"
-          # exit 1
+          java -jar build/libs/*.jar &
+          sleep 60  # 최소 10~20초 권장
       - name: Integration Test
         run: |
-          curl -X GET http://localhost:8080/api/challenges/group/categories
+          curl -v http://localhost:8080/api/challenges/group/categories || exit 1
       - name: Stop Spring Boot App
         run: pkill -f 'org.springframework.boot.loader.JarLauncher' # 또는 애플리케이션 실행 방식에 따른 프로세스 종료
 
