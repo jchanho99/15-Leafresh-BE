@@ -43,8 +43,7 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: Rlatldms!2!3
           MYSQL_DATABASE: leafresh
-          MYSQL_USER: root
-          MYSQL_PASSWORD: Rlatldms!2!3
+          MYSQL_ALLOW_EMPTY_PASSWORD: false
         ports:
           - 3306:3306
         options: >-
@@ -56,6 +55,9 @@ jobs:
       SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/leafresh
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: Rlatldms!2!3
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
+      SPRING_JPA_HIBERNATE_DDL_AUTO: create-drop
+      SPRING_JPA_SHOW_SQL: true
     defaults:
       run:
         working-directory: ./
