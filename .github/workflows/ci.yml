@@ -41,10 +41,10 @@ jobs:
       mysql:
         image: mysql:8.0
         env:
-          MYSQL_ROOT_PASSWORD: rootpass
-          MYSQL_DATABASE: testdb
-          MYSQL_USER: testuser
-          MYSQL_PASSWORD: testpass
+          MYSQL_ROOT_PASSWORD: Rlatldms!2!3
+          MYSQL_DATABASE: leafresh
+          MYSQL_USER: root
+          MYSQL_PASSWORD: Rlatldms!2!3
         ports:
           - 3306:3306
         options: >-
@@ -53,9 +53,9 @@ jobs:
           --health-timeout=5s
           --health-retries=5
     env:
-      SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/testdb
-      SPRING_DATASOURCE_USERNAME: testuser
-      SPRING_DATASOURCE_PASSWORD: testpass
+      SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/leafresh
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: Rlatldms!2!3
     defaults:
       run:
         working-directory: ./
