@@ -52,12 +52,12 @@ jobs:
       - name: Build Spring Boot App
         run: ./gradlew bootJar
 
-      - name: Start Spring Boot App
+      - name: Start App and Do Integration Test
         run: |
           nohup java -Dspring.profiles.active=test -jar build/libs/*.jar > app.log 2>&1 &
           echo "Waiting for Spring Boot to be healthy..."
-          for i in {1..60}; do
-            status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 || echo "000")
+          for i in {1..80}; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/challenges/group/categories || echo "000")
             if [ "$status" = "200" ] || [ "$status" = "401" ]; then
               echo "✅ App is ready (HTTP $status)"
               exit 0
@@ -69,14 +69,6 @@ jobs:
           echo "--- app.log ---"
           cat app.log
           exit 1
-
-      - name: Integration Test
-        run: |
-          curl -v http://localhost:8080/api/challenges/group/categories || (
-            echo "❌ API call failed"; 
-            cat app.log;
-            exit 1
-          )
 
       - name: Stop Spring Boot App
         run: pkill -f 'java -jar'
