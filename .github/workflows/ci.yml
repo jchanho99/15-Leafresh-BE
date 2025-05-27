@@ -43,7 +43,6 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: Rlatldms!2!3
           MYSQL_DATABASE: leafresh
-          MYSQL_USER: root
           MYSQL_PASSWORD: Rlatldms!2!3
         ports:
           - 3306:3306
