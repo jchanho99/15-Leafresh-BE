@@ -71,19 +71,40 @@ jobs:
       run:
         working-directory: ./
     steps:
-      - uses: actions/checkout@v3 # 필요하다면 유지
+      - uses: actions/checkout@v3
+
       - name: Build Spring Boot App
         run: ./gradlew bootJar
+
       - name: Start Spring Boot App
         run: |
-          java -jar build/libs/*.jar &
-          sleep 60  # 최소 10~20초 권장
+          nohup java -jar build/libs/*.jar > app.log 2>&1 &
+          echo "Waiting for Spring Boot to be healthy..."
+          for i in {1..60}; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 || echo "000")
+            if [ "$status" = "200" ] || [ "$status" = "401" ]; then
+              echo "✅ App is ready (HTTP $status)"
+              exit 0
+            fi
+            echo "⏳ ($i/60) status=$status"
+            sleep 1
+          done
+          echo "❌ App did not start in time"
+          echo "--- app.log ---"
+          cat app.log
+          exit 1
+
       - name: Integration Test
         run: |
-          curl -v http://localhost:8080/api/challenges/group/categories || exit 1
-      - name: Stop Spring Boot App
-        run: pkill -f 'org.springframework.boot.loader.JarLauncher' # 또는 애플리케이션 실행 방식에 따른 프로세스 종료
+          curl -v http://localhost:8080/api/challenges/group/categories || (
+            echo "❌ API call failed"; 
+            cat app.log;
+            exit 1
+          )
 
+      - name: Stop Spring Boot App
+        run: pkill -f 'java -jar'
+        
   build-dev:
     name: Build and Push Backend Docker (develop only)
     needs: [unit-test, setup]
