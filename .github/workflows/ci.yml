@@ -7,64 +7,34 @@ on:
     branches: [ "develop", "main" ]
 
 jobs:
-  setup:
-    name: Setup JDK and Grant Gradle Permission
+  unit-test:
+    name: Unit Test
+    if: github.base_ref == 'develop' && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    outputs:
-      gradle_cache_hit: ${{ steps.cache-gradle.outputs.cache-hit }}
+    defaults:
+      run:
+        working-directory: ./
     steps:
       - uses: actions/checkout@v3
-      - name: Setup JDK 21
+      - name: Set up JDK 21
         uses: actions/setup-java@v3
         with:
           distribution: 'oracle'
           java-version: 21
       - name: Grant Gradle permission
         run: chmod +x ./gradlew
-      - name: Cache Gradle Wrapper
-        uses: actions/cache@v3
-        id: cache-gradle-wrapper
-        with:
-          path: ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
       - name: Cache Gradle dependencies
         uses: actions/cache@v3
-        id: cache-gradle
         with:
           path: ~/.gradle/caches
           key: ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'build.gradle') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-
-  # lint:
-  #   name: Lint
-  #   needs: setup
-  #   if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
-  #   runs-on: ubuntu-latest
-  #   defaults:
-  #     run:
-  #       working-directory: ./
-  #   steps:
-  #     - uses: actions/checkout@v3 # 필요하다면 유지
-  #     - name: Checkstyle
-  #       run: ./gradlew checkstyleMain
-
-  unit-test:
-    name: Unit Test
-    needs: setup
-    if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./
-    steps:
-      - uses: actions/checkout@v3 # 필요하다면 유지
       - name: Run Tests
         run: ./gradlew test
 
   integration-test:
     name: Integration Test
-    needs: setup
     if: github.base_ref == 'main' && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     defaults:
@@ -72,6 +42,12 @@ jobs:
         working-directory: ./
     steps:
       - uses: actions/checkout@v3
+
+      - name: Set up JDK 21 for Runtime
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'oracle'
+          java-version: 21
 
       - name: Build Spring Boot App
         run: ./gradlew bootJar
@@ -104,10 +80,10 @@ jobs:
 
       - name: Stop Spring Boot App
         run: pkill -f 'java -jar'
-        
+
   build-dev:
     name: Build and Push Backend Docker (develop only)
-    needs: [unit-test, setup]
+    needs: unit-test
     if: github.ref == 'refs/heads/develop' || github.base_ref == 'develop'
     runs-on: ubuntu-latest
     defaults:
@@ -136,7 +112,7 @@ jobs:
 
   build-prod:
     name: Build and Push Backend Docker (main only PR)
-    needs: [integration-test, setup]
+    needs: integration-test
     if: github.base_ref == 'main' && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     defaults:
@@ -157,4 +133,5 @@ jobs:
           push: true
           tags: jchanho99/backend-prod:latest
           cache-from: type=gha,scope=build-backend-prod
+
           cache-to: type=gha,mode=max,scope=build-backend-prod
