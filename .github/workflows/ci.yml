@@ -37,6 +37,21 @@ jobs:
     name: Integration Test
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: Rlatldms!2!3
+          MYSQL_DATABASE: leafresh
+          MYSQL_USER: root
+          MYSQL_PASSWORD: Rlatldms!2!3
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
     defaults:
       run:
         working-directory: ./
@@ -52,12 +67,12 @@ jobs:
       - name: Build Spring Boot App
         run: ./gradlew bootJar
 
-      - name: Start App and Do Integration Test
+      - name: Start Spring Boot App
         run: |
           nohup java -Dspring.profiles.active=test -jar build/libs/*.jar > app.log 2>&1 &
           echo "Waiting for Spring Boot to be healthy..."
-          for i in {1..80}; do
-            status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/challenges/group/categories || echo "000")
+          for i in {1..60}; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 || echo "000")
             if [ "$status" = "200" ] || [ "$status" = "401" ]; then
               echo "✅ App is ready (HTTP $status)"
               exit 0
@@ -69,6 +84,14 @@ jobs:
           echo "--- app.log ---"
           cat app.log
           exit 1
+
+      - name: Integration Test
+        run: |
+          curl -v http://localhost:8080/api/challenges/group/categories || (
+            echo "❌ API call failed"; 
+            cat app.log;
+            exit 1
+          )
 
       - name: Stop Spring Boot App
         run: pkill -f 'java -jar'
@@ -126,4 +149,3 @@ jobs:
           tags: jchanho99/backend-prod:latest
           cache-from: type=gha,scope=build-backend-prod
           cache-to: type=gha,mode=max,scope=build-backend-prod
-
