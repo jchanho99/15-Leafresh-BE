@@ -37,6 +37,7 @@ jobs:
 
       - name: Run Tests                        # 단위 테스트 실행
         run: ./gradlew test
+        
   integration-test:
     name: Integration Test
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
@@ -118,6 +119,7 @@ jobs:
             -Dkakao.redirect-uri=${kakao_redirect_uri} \
             -Dai-server.base-url=${ai_server_base_url} \
             -Dgcp.project-id=${gcp_project_id} \
+            -Dgcp.credentials.location=${gcp_credentials_location} \
             -jar build/libs/*.jar > app.log 2>&1 &
 
           echo "✅ Java started, waiting for Spring Boot..."
