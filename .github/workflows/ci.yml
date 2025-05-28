@@ -198,11 +198,11 @@ jobs:
         run: |
           if [[ "${GITHUB_REF##*/}" == "main" ]]; then
             echo "${{ secrets.DOCKER_PROD }}" > .env
-            echo "env-prod" > secret_name.txt
+            echo "env-be-prod" > secret_name.txt
             echo "Using production .env"
           else
             echo "${{ secrets.DOCKER_LOCAL }}" > .env
-            echo "env-dev" > secret_name.txt
+            echo "env-be-dev" > secret_name.txt
             echo "Using development .env"
           fi
         
