@@ -114,6 +114,7 @@ jobs:
             -Dkakao.client-secret=${kakao_client_secret} \
             -Dkakao.redirect-uri=${kakao_redirect_uri} \
             -Dai-server.base-url=${ai_server_base_url} \
+            -Dgcp.project-id=${gcp_project_id} \
             -jar build/libs/*.jar > app.log 2>&1 &
 
           echo "✅ Java started, waiting for Spring Boot..."
