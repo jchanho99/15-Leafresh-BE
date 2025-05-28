@@ -104,6 +104,9 @@ jobs:
             -Dspring.redis.port=${docker_local_cache_port} \
             -Djwt.secret="${jwt_secret}" \
             -Dai.server.base-url=${ai_server_base_url} \
+            -Dkakao.client-id=${kakao_client_id} \
+            -Dkakao.client-secret=${kakao_client_secret} \
+            -Dkakao.redirect-uri=${kakao_redirect_uri} \
             -jar build/libs/*.jar > app.log 2>&1 &
 
           for i in {1..30}; do
