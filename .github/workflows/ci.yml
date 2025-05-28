@@ -110,20 +110,11 @@ jobs:
             -Dspring.redis.host=${docker_local_cache_host} \
             -Dspring.redis.port=${docker_local_cache_port} \
             -Djwt.secret="${jwt_secret}" \
-            -Dai.server.base-url=${ai_server_base_url} \
             -Dkakao.client-id=${kakao_client_id} \
             -Dkakao.client-secret=${kakao_client_secret} \
             -Dkakao.redirect-uri=${kakao_redirect_uri} \
+            -Dai-server.base-url=${ai_server_base_url} \
             -jar build/libs/*.jar > app.log 2>&1 &
-
-          for i in {1..30}; do
-            if curl -s http://localhost:8080/actuator/health | grep UP > /dev/null; then
-              echo "Spring Boot is UP"
-              break
-            fi
-            echo "Waiting for Spring Boot..."
-            sleep 2
-          done
 
       - name: Integration Test
         run: |
