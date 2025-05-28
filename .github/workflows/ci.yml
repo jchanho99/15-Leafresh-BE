@@ -69,7 +69,7 @@ jobs:
           java-version: 21
 
       - name: Create .env from secret          # GitHub Secrets로부터 .env 파일 생성
-        run: echo "${{ secrets.ENV_PROD_FILE }}" > .env
+        run: echo "${{ secrets.DOCKER_LOCAL }}" > .env
 
       - name: Build Spring Boot App            # Spring Boot JAR 빌드
         run: ./gradlew bootJar
