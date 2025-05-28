@@ -76,8 +76,7 @@ jobs:
 
       - name: Start Spring Boot App with env   # .env 환경변수로 앱 실행 및 헬스체크
         run: |
-          export $(grep -v '^#' .env | xargs)
-          nohup java -jar build/libs/*.jar > app.log 2>&1 &
+          nohup env $(grep -v '^#' .env | xargs) java -jar build/libs/*.jar > app.log 2>&1 &
 
           for i in {1..30}; do
             if curl -s http://localhost:8080/actuator/health | grep UP > /dev/null; then
