@@ -94,6 +94,9 @@ jobs:
         run: |
           echo "${{ secrets.DOCKER_LOCAL }}" > .env
           grep -v '^#' .env | xargs -L1 echo export >> $GITHUB_ENV
+      
+      - name: Create GCP credentials file
+        run: echo "${{ secrets.GCP_SA_KEY }}" > /home/runner/gcp-sa-key.json
 
       - name: Build Spring Boot App
         run: ./gradlew bootJar
