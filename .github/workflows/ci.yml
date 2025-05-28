@@ -166,10 +166,11 @@ jobs:
           cache-from: type=gha,scope=build-backend-prod
           cache-to: type=gha,mode=max,scope=build-backend-prod
 
-  sync-env-to-secret-manager:                   # .env 파일을 GCP Secret Manager에 동기화
+    sync-env-to-secret-manager:                   # .env 파일을 GCP Secret Manager에 동기화
     name: Upload .env to Secret Manager
     if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository              # 저장소 코드 가져오기
         uses: actions/checkout@v3
@@ -180,20 +181,30 @@ jobs:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
           export_default_credentials: true
-      
-      - name: Check gcloud authentication
+
+      - name: Confirm gcloud authentication    # 인증 확인 (디버깅용)
         run: gcloud auth list
+
+      - name: Confirm active gcloud project    # 프로젝트 ID 확인 (디버깅용)
+        run: gcloud config get-value project
 
       - name: Select environment and write .env file   # 브랜치에 따라 ENV 선택
         run: |
           if [[ "${GITHUB_REF##*/}" == "main" ]]; then
             echo "${{ secrets.DOCKER_PROD }}" > .env
-            echo "Using production .env"
             echo "env-prod" > secret_name.txt
+            echo "Using production .env"
           else
             echo "${{ secrets.DOCKER_LOCAL }}" > .env
-            echo "Using development .env"
             echo "env-dev" > secret_name.txt
+            echo "Using development .env"
+          fi
+
+      - name: Validate .env content            # 비어있는 .env 방지
+        run: |
+          if [[ ! -s .env ]]; then
+            echo ".env 파일이 비어 있습니다. 종료합니다."
+            exit 1
           fi
 
       - name: Push .env to Secret Manager      # Secret Manager에 .env 저장 또는 업데이트
@@ -207,4 +218,3 @@ jobs:
             echo "Secret $SECRET_NAME does not exist, creating..."
             gcloud secrets create "$SECRET_NAME" --data-file=.env --replication-policy=automatic
           fi
-          
