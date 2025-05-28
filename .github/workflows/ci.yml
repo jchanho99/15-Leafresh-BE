@@ -184,11 +184,11 @@ jobs:
       - name: Select environment and write .env file   # 브랜치에 따라 ENV 선택
         run: |
           if [[ "${GITHUB_REF##*/}" == "main" ]]; then
-            echo "${{ secrets.ENV_PROD_FILE }}" > .env
+            echo "${{ secrets.DOCKER_PROD }}" > .env
             echo "Using production .env"
             echo "env-prod" > secret_name.txt
           else
-            echo "${{ secrets.ENV_DEV_FILE }}" > .env
+            echo "${{ secrets.DOCKER_LOCAL }}" > .env
             echo "Using development .env"
             echo "env-dev" > secret_name.txt
           fi
