@@ -16,12 +16,14 @@ jobs:
         working-directory: ./
     steps:
       - uses: actions/checkout@v3
-      - name: Set up JDK 21
+      
+      - name: Set up JDK 21                  # JDK 21 환경 세팅
         uses: actions/setup-java@v3
         with:
           distribution: 'oracle'
           java-version: 21
-      - name: Grant Gradle permission
+      
+      - name: Grant Gradle permission        # Gradle 실행환경 구성
         run: chmod +x ./gradlew
       - name: Cache Gradle dependencies
         uses: actions/cache@v3
@@ -30,13 +32,15 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'build.gradle') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
-      - name: Run Tests
+
+      - name: Run Tests                      # unit test 실행
         run: ./gradlew test
 
   integration-test:
     name: Integration Test
     if: github.event_name == 'pull_request' && github.base_ref == 'main'
     runs-on: ubuntu-latest
+    
     services:
       mysql:
         image: mysql:8.0
@@ -61,30 +65,29 @@ jobs:
     defaults:
       run:
         working-directory: ./
+    
     steps:
       - uses: actions/checkout@v3
-
-      - name: Set up JDK 21 for Runtime
+      - name: Set up JDK 21                  # JDK 21 환경 세팅
         uses: actions/setup-java@v3
         with:
           distribution: 'oracle'
           java-version: 21
 
-      - name: Build Spring Boot App
+      - name: Build Spring Boot App          # jar 실행 후 대기
         run: ./gradlew bootJar
-
       - name: Start Spring Boot App
         run: |
           TIMEOUT=60
           sleep $TIMEOUT;
-      - name: Integration Test
+
+      - name: Integration Test               # 통합 테스트 진행 후 종료
         run: |
           curl -v http://localhost:8080/api/challenges/group/categories || (
             echo "❌ API call failed"; 
             cat app.log;
             exit 1
           )
-
       - name: Stop Spring Boot App
         run: pkill -f 'java -jar'
 
@@ -145,3 +148,44 @@ jobs:
           tags: jchanho99/backend-prod:latest
           cache-from: type=gha,scope=build-backend-prod
           cache-to: type=gha,mode=max,scope=build-backend-prod
+
+  sync-env-to-secret-manager:
+    name: Upload .env to Secret Manager
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup gcloud CLI
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+          export_default_credentials: true
+
+      - name: Select environment and write .env file
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "${{ secrets.ENV_PROD_FILE }}" > .env
+            echo "Using production .env"
+            echo "env-prod" > secret_name.txt
+          else
+            echo "${{ secrets.ENV_DEV_FILE }}" > .env
+            echo "Using development .env"
+            echo "env-dev" > secret_name.txt
+          fi
+
+      - name: Push .env to Secret Manager
+        run: |
+          SECRET_NAME=$(cat secret_name.txt)
+
+          # Check if secret exists
+          if gcloud secrets describe "$SECRET_NAME" >/dev/null 2>&1; then
+            echo "Secret $SECRET_NAME exists, adding new version..."
+            gcloud secrets versions add "$SECRET_NAME" --data-file=.env
+          else
+            echo "Secret $SECRET_NAME does not exist, creating..."
+            gcloud secrets create "$SECRET_NAME" --data-file=.env --replication-policy=automatic
+          fi
+
