@@ -49,11 +49,8 @@ jobs:
         env:
           MYSQL_ROOT_PASSWORD: Rlatldms!2!3
           MYSQL_DATABASE: leafresh
-          MYSQL_ALLOW_EMPTY_PASSWORD: false
-        ports:
-          - 3306:3306
         options: >-
-          --health-cmd="mysqladmin ping -h localhost"
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --protocol=tcp"
           --health-interval=10s
           --health-timeout=5s
           --health-retries=5
