@@ -314,7 +314,7 @@ jobs:
               --env-file /home/ubuntu/app/.env \
               -p 8080:8080 \
               --restart always \
-              backend-dev:latest
+              jchanho99/backend-dev:latest
 
   deploy-prod:
     name: BE Docker 배포 (Prod)
