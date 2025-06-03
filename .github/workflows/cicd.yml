@@ -301,7 +301,7 @@ jobs:
             mkdir -p /home/ubuntu/app
             if ! gcloud secrets versions access latest \
               --secret="env-be-dev" \
-              --project="leafresh-dev" > /home/ubuntu/app/.env; then
+              --project="leafresh-dev2" > /home/ubuntu/app/.env; then
               echo ".env 파일 다운로드 실패"
               exit 1
             fi
