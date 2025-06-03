@@ -273,21 +273,24 @@ jobs:
     if: github.event_name == 'pull_request' && github.base_ref == 'develop'
     runs-on: ubuntu-latest
 
-
     steps:
       - name: Setup SSH Key
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_DEV }}
 
-      - name: Upload GCP key to BE Server
+      - name: Upload GCP json key to BE Server
         run: |
           echo "${{ secrets.GCP_SA_KEY_DEV_BASE64 }}" | base64 -d > gcp-key.json
           scp -o StrictHostKeyChecking=no gcp-key.json ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }}:/home/ubuntu/gcp-key.json
 
-      - name: Download env and release Docker Image (Develop)
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << EOF
+      - name: Deploy Backend (Develop) via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST_DEV }}
+          username: ${{ secrets.SSH_USER_DEV }}
+          key: ${{ secrets.SSH_PRIVATE_KEY_DEV }}
+          script: |
             set -e
             echo "GCP 인증 및 Docker 로그인"
             gcloud auth activate-service-account --key-file=/home/ubuntu/gcp-key.json
@@ -311,7 +314,6 @@ jobs:
               -p 8080:8080 \
               --restart always \
               jchanho99/backend-dev:latest
-          EOF
 
   deploy-prod:
     name: BE Docker 배포 (Prod)
@@ -325,14 +327,18 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
 
-      - name: GCP 서비스 계정 키 업로드
+      - name: Upload GCP json key to BE Server
         run: |
           echo "${{ secrets.GCP_SA_KEY_PROD_BASE64 }}" | base64 -d > gcp-key.json
           scp -o StrictHostKeyChecking=no gcp-key.json ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}:/home/ubuntu/gcp-key.json
 
-      - name: 서버에 접속해 배포 및 헬스체크 수행 (Prod)
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }} << EOF
+      - name: Deploy Backend (Prod) via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST_PROD }}
+          username: ${{ secrets.SSH_USER_PROD }}
+          key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
+          script: |
             set -e
             echo "GCP 인증 및 Docker 로그인"
             gcloud auth activate-service-account --key-file=/home/ubuntu/gcp-key.json
@@ -348,18 +354,18 @@ jobs:
             fi
 
             echo "[PROD 환경] Blue-Green 배포 시작"
-            CURRENT=\$(cat /opt/backend-current 2>/dev/null || echo blue)
-            NEXT=\$( [ "\$CURRENT" = "blue" ] && echo green || echo blue )
-            echo "[PROD] 현재: \$CURRENT → 다음: \$NEXT"
+            CURRENT=$(cat /opt/backend-current 2>/dev/null || echo blue)
+            NEXT=$( [ "$CURRENT" = "blue" ] && echo green || echo blue )
+            echo "[PROD] 현재: $CURRENT → 다음: $NEXT"
 
-            docker stop backend-\$NEXT || true
-            docker rm backend-\$NEXT || true
+            docker stop backend-$NEXT || true
+            docker rm backend-$NEXT || true
             docker pull jchanho99/backend-prod:latest
 
             echo "현재 사용 중인 컨테이너 이미지 확인"
-            docker inspect --format='{{.Config.Image}}' backend-\$CURRENT || echo "컨테이너가 존재하지 않음"
+            docker inspect --format='{{.Config.Image}}' backend-$CURRENT || echo "컨테이너가 존재하지 않음"
 
-            docker run -d --name backend-\$NEXT \
+            docker run -d --name backend-$NEXT \
               --env-file /home/ubuntu/app/.env \
               -p 8081:8080 \
               --restart always \
@@ -374,19 +380,15 @@ jobs:
                 SUCCESS=true
                 break
               fi
-              echo "헬스체크 재시도 (\$i/10)"
+              echo "헬스체크 재시도 ($i/10)"
             done
 
-            if [ "\$SUCCESS" = false ]; then
+            if [ "$SUCCESS" = false ]; then
               echo "헬스체크 실패"
               exit 1
             fi
 
-            echo "\$NEXT" > /opt/backend-current
-            PREV=\$( [ "\$NEXT" = "blue" ] && echo green || echo blue )
-            docker stop backend-\$PREV || true
-            docker rm backend-\$PREV || true
-
-            echo "Blue-Green 배포 완료: \$NEXT 사용 중"
-            docker ps --filter "name=backend-\$NEXT"
-          EOF
+            echo "$NEXT" > /opt/backend-current
+            PREV=$( [ "$NEXT" = "blue" ] && echo green || echo blue )
+            docker stop backend-$PREV || true
+            docker rm backend-$PREV || true
