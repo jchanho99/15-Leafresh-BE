@@ -300,7 +300,7 @@ jobs:
             echo "Secret Manager에서 .env 기져오기"
             mkdir -p /home/ubuntu/app
             if ! gcloud secrets versions access latest \
-              --secret="env-be-local" \
+              --secret="env-be-dev" \
               --project="leafresh-dev" > /home/ubuntu/app/.env; then
               echo ".env 파일 다운로드 실패"
               exit 1
@@ -310,11 +310,11 @@ jobs:
             docker stop backend || true
             docker rm backend || true
             docker pull jchanho99/backend-dev:latest
-            docker run -d --name backend \
+            docker run -d --name backend-develop \
               --env-file /home/ubuntu/app/.env \
               -p 8080:8080 \
               --restart always \
-              jchanho99/backend-dev:latest
+              backend-dev:latest
 
   deploy-prod:
     name: BE Docker 배포 (Prod)
