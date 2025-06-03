@@ -307,10 +307,10 @@ jobs:
             fi
 
             echo "[DEV] 환경 배포 중"
-            docker stop backend-develop || true
-            docker rm backend-develop || true
-            docker pull jchanho99/backend-dev:latest
-            docker run -d --name backend-develop \
+            sudo docker stop backend-develop || true
+            sudo docker rm backend-develop || true
+            sudo docker pull jchanho99/backend-dev:latest
+            sudo docker run -d --name backend-develop \
               --env-file /home/ubuntu/app/.env \
               -p 8080:8080 \
               --restart always \
