@@ -1,0 +1,389 @@
+name: Backend CI/CD
+ 
+on:
+  push:
+    branches: [ "develop", "main" ]
+  pull_request:
+    branches: [ "develop", "main" ]
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  sync-env-to-GSM:
+    name: Upload .env to Secret Manager
+    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID_DEV }}
+          credentials_json: ${{ secrets.GCP_SA_KEY_DEV }}
+          export_default_credentials: true
+
+      - name: Set GCP Secret Name based on branch
+        id: set-env-vars
+        run: |
+          if [[ "${GITHUB_REF##*/}" == "main" ]]; then
+            echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID_MAIN }}" >> $GITHUB_ENV
+            echo "SECRET_NAME=env-be-prod" >> $GITHUB_ENV
+            echo "${{ secrets.ENV_DOCKER_PROD }}" > .env
+            echo "Using A project and production .env"
+          else
+            echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID_DEV }}" >> $GITHUB_ENV
+            echo "SECRET_NAME=env-be-dev" >> $GITHUB_ENV
+            echo "${{ secrets.ENV_DOCKER_LOCAL }}" > .env
+            echo "Using B project and development .env"
+          fi
+
+      - name: Setup Google Cloud SDK and Set GCP Project
+        uses: 'google-github-actions/setup-gcloud@v2'
+        run: |
+          echo '${{ secrets.GCP_SA_KEY_DEV }}' > key.json
+          gcloud auth activate-service-account --key-file=key.json
+          gcloud config set project $GCP_PROJECT_ID
+
+      - name: Confirm active gcloud project
+        run: gcloud config get-value project
+
+      - name: Validate .env content
+        run: |
+          if [[ ! -s .env ]]; then
+            echo ".env file EMPTY."
+            exit 1
+          fi
+
+      - name: Push .env to Secret Manager
+        run: |
+          if gcloud secrets describe "$SECRET_NAME" >/dev/null 2>&1; then
+            echo "Secret $SECRET_NAME exists, adding new version..."
+            gcloud secrets versions add "$SECRET_NAME" --data-file=.env
+          else
+            echo "Secret $SECRET_NAME does not exist, creating..."
+            gcloud secrets create "$SECRET_NAME" --data-file=.env --replication-policy=automatic
+          fi
+
+  unit-test:                                    # 단위 테스트를 수행하는 Job (develop 브랜치 PR 대상)
+    name: Unit Test
+    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./
+    steps:
+      - uses: actions/checkout@v3              # 소스코드 체크아웃
+
+      - name: Set up JDK 21                    # Java 21 환경 설정
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'oracle'
+          java-version: 21
+
+      - name: Grant Gradle permission          # gradlew 실행 권한 부여
+        run: chmod +x ./gradlew
+
+      - name: Cache Gradle dependencies        # Gradle 캐시로 빌드 속도 향상
+        uses: actions/cache@v3
+        with:
+          path: ~/.gradle/caches
+          key: ${{ runner.os }}-gradle-${{ hashFiles('build.gradle.kts', 'build.gradle') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+      - name: Run Tests                        # 단위 테스트 실행
+        run: ./gradlew test
+        
+  integration-test:
+    name: Integration Test
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: Rlatldms!2!3
+          MYSQL_DATABASE: leafresh
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --protocol=tcp"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+      redis:
+        image: redis:6.2
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    defaults:
+      run:
+        working-directory: ./
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'oracle'
+          java-version: 21
+
+      - name: Create .env file from GitHub Secret
+        run: echo "${{ secrets.ENV_DOCKER_LOCAL }}" > .env
+
+      - name: Export environment variables
+        run: |
+          set -o allexport
+          source .env
+          set +o allexport
+          echo "kakao_client_id=${kakao_client_id}"
+          echo "jwt_secret=${jwt_secret:0:10}..." # 일부만 출력
+      
+      - name: Export .env variables to environment
+        run: |
+          echo "${{ secrets.ENV_DOCKER_LOCAL }}" > .env
+          grep -v '^#' .env | xargs -L1 echo export >> $GITHUB_ENV
+      
+      - name: Create GCP credentials file
+        run: echo "${{ secrets.GCP_SA_KEY_DEV_BASE64 }}" | base64 -d > /home/runner/gcp-sa-key.json
+
+      - name: Build Spring Boot App
+        run: ./gradlew bootJar
+
+      - name: Start Spring Boot App with env
+        run: |
+          source .env
+          nohup java \
+            -Dspring.profiles.active=$spring_profiles_active \
+            -Dspring.datasource.url=jdbc:mysql://${docker_local_db_host}:${db_port}/${docker_local_db_name} \
+            -Dspring.datasource.username=${docker_local_db_user} \
+            -Dspring.datasource.password=${docker_local_db_password} \
+            -Dspring.redis.host=${docker_local_cache_host} \
+            -Dspring.redis.port=${docker_local_cache_port} \
+            -Djwt.secret="${jwt_secret}" \
+            -Dkakao.client-id=${kakao_client_id} \
+            -Dkakao.client-secret=${kakao_client_secret} \
+            -Dkakao.redirect-uri=${kakao_redirect_uri} \
+            -Dai-server.base-url=${ai_server_base_url} \
+            -Dgcp.project-id=${gcp_project_id} \
+            -Dgcp.credentials.location=${gcp_credentials_location} \
+            -jar build/libs/*.jar > app.log 2>&1 &
+          echo "✅ Java started, waiting for Spring Boot..."
+          
+          for i in {1..30}; do
+            if curl -s http://localhost:8080/actuator/health | grep UP > /dev/null; then
+              echo "✅ Spring Boot is UP"
+              break
+            fi
+            echo "⏳ Waiting for Spring Boot..."
+            sleep 2
+          done
+      - name: Integration Test
+        run: |
+          curl -v http://localhost:8080/api/challenges/group/categories || (
+            echo "API call failed"
+            echo "===== APP.LOG START ====="
+            cat app.log || echo "app.log not found"
+            echo "===== APP.LOG END ====="
+            exit 1
+          )
+      - name: Stop Spring Boot App
+        run: pkill -f 'java -jar'
+
+  build-dev:                                    # develop 브랜치에서 Docker 이미지 빌드 및 푸시
+    name: Build and Push Docker (dev)
+    needs: unit-test
+    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3              # 소스코드 체크아웃
+
+      - name: Build JAR with Gradle            # JAR 빌드
+        run: ./gradlew build
+
+      - name: Set up Docker Buildx             # Docker Buildx 설정
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
+      - name: Login to Docker Hub              # Docker Hub 로그인
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and Push Docker Image      # Docker 이미지 빌드 및 푸시
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: jchanho99/backend-develop:latest
+          cache-from: type=gha,scope=build-backend-develop
+          cache-to: type=gha,mode=max,scope=build-backend-develop
+
+  build-prod:                                   # main 브랜치에서 Docker 이미지 빌드 및 푸시
+    name: Build and Push Docker (prod)
+    needs: integration-test
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./
+    steps:
+      - uses: actions/checkout@v3              # 코드 체크아웃
+      
+      - name: Get short commit SHA
+        id: get_sha
+        run: echo "SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx             # Docker Buildx 설정
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
+      - name: Login to Docker Hub              # Docker Hub 로그인
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Build and Push Docker Image      # Docker 이미지 빌드 및 푸시
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: jchanho99/backend-prod:${{ env.SHORT_SHA }}
+          cache-from: type=gha,scope=build-backend-prod
+          cache-to: type=gha,mode=max,scope=build-backend-prod
+
+  deploy-dev:
+    name: BE Docker 배포 (Develop)
+    needs: [build-dev]
+    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup SSH Key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.BE_SSH_PRIVATE_KEY }}
+
+      - name: Upload GCP key to BE Server
+        run: |
+          echo "${{ secrets.GCP_SA_KEY_DEV_BASE64 }}" | base64 -d > gcp-key.json
+          scp -o StrictHostKeyChecking=no gcp-key.json ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }}:/home/ubuntu/gcp-key.json
+
+      - name: Download env and release Docker Image (Develop)
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }} << EOF
+            set -e
+            echo "GCP 인증 및 Docker 로그인"
+            gcloud auth activate-service-account --key-file=/home/ubuntu/gcp-key.json
+            gcloud auth configure-docker
+
+            echo "Secret Manager에서 .env 기져오기"
+            mkdir -p /home/ubuntu/app
+            if ! gcloud secrets versions access latest \
+              --secret="env-be-local" \
+              --project="leafresh-dev" > /home/ubuntu/app/.env; then
+              echo ".env 파일 다운로드 실패"
+              exit 1
+            fi
+
+            echo "[DEV] 환경 배포 중"
+            docker stop backend || true
+            docker rm backend || true
+            docker pull jchanho99/backend-dev:latest
+            docker run -d --name backend \
+              --env-file /home/ubuntu/app/.env \
+              -p 8080:8080 \
+              --restart always \
+              jchanho99/backend-dev:latest
+          EOF
+
+  deploy-prod:
+    name: BE Docker 배포 (Prod)
+    needs: [build-prod]
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH 키 설정
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.BE_SSH_PRIVATE_KEY }}
+
+      - name: GCP 서비스 계정 키 업로드
+        run: |
+          echo "${{ secrets.PROD_GCP_SA_KEY_BASE64 }}" | base64 -d > gcp-key.json
+          scp -o StrictHostKeyChecking=no gcp-key.json ${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}:/home/ubuntu/gcp-key.json
+
+      - name: 서버에 접속해 배포 및 헬스체크 수행 (Prod)
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }} << EOF
+            set -e
+            echo "GCP 인증 및 Docker 로그인"
+            gcloud auth activate-service-account --key-file=/home/ubuntu/gcp-key.json
+            gcloud auth configure-docker
+
+            echo "Secret Manager에서 .env 가져오기"
+            mkdir -p /home/ubuntu/app
+            if ! gcloud secrets versions access latest \
+              --secret="env-be-prod" \
+              --project="leafresh-prod" > /home/ubuntu/app/.env; then
+              echo ".env 파일 다운로드 실패"
+              exit 1
+            fi
+
+            echo "[PROD 환경] Blue-Green 배포 시작"
+            CURRENT=\$(cat /opt/backend-current 2>/dev/null || echo blue)
+            NEXT=\$( [ "\$CURRENT" = "blue" ] && echo green || echo blue )
+            echo "[PROD] 현재: \$CURRENT → 다음: \$NEXT"
+
+            docker stop backend-\$NEXT || true
+            docker rm backend-\$NEXT || true
+            docker pull jchanho99/backend-prod:latest
+
+            echo "현재 사용 중인 컨테이너 이미지 확인"
+            docker inspect --format='{{.Config.Image}}' backend-\$CURRENT || echo "컨테이너가 존재하지 않음"
+
+            docker run -d --name backend-\$NEXT \
+              --env-file /home/ubuntu/app/.env \
+              -p 8081:8080 \
+              --restart always \
+              jchanho99/backend-prod:latest
+
+            echo "헬스체크 시작"
+            SUCCESS=false
+            for i in {1..10}; do
+              sleep 5
+              if curl -f http://localhost:8081/actuator/health; then
+                echo "헬스체크 통과"
+                SUCCESS=true
+                break
+              fi
+              echo "헬스체크 재시도 (\$i/10)"
+            done
+
+            if [ "\$SUCCESS" = false ]; then
+              echo "헬스체크 실패"
+              exit 1
+            fi
+
+            echo "\$NEXT" > /opt/backend-current
+            PREV=\$( [ "\$NEXT" = "blue" ] && echo green || echo blue )
+            docker stop backend-\$PREV || true
+            docker rm backend-\$PREV || true
+
+            echo "Blue-Green 배포 완료: \$NEXT 사용 중"
+            docker ps --filter "name=backend-\$NEXT"
+          EOF
