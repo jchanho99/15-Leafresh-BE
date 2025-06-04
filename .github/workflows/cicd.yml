@@ -11,7 +11,7 @@ on:
 jobs:
   sync-env-to-GSM:
     name: Upload .env to Secret Manager
-    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
