@@ -5,13 +5,12 @@ on:
     branches: [ "develop", "main" ]
   push:
     tags:
-      - 'v[0-9]*.[0-9]*.[0-9]*-dev'
-      - 'v[0-9]*.[0-9]*.[0-9]*'
-
+      - 'v*-dev'
+      - 'v*'
 jobs:
   sync-env-to-GSM:
     name: Upload .env to Secret Manager
-    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
