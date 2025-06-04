@@ -23,7 +23,6 @@ jobs:
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID_DEV }}
           credentials_json: ${{ secrets.GCP_SA_KEY_DEV_JSON }}
-          export_default_credentials: true
 
       - name: Set GCP Secret Name based on branch
         id: set-env-vars
@@ -286,19 +285,19 @@ jobs:
       - name: Setup SSH Key
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_DEV }}
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Upload GCP json key to BE Server
         run: |
           echo "${{ secrets.GCP_SA_KEY_DEV_BASE64 }}" | base64 -d > gcp-key.json
-          scp -o StrictHostKeyChecking=no gcp-key.json ${{ secrets.SSH_USER_DEV }}@${{ secrets.SSH_HOST_DEV }}:/home/ubuntu/gcp-key.json
+          scp -o StrictHostKeyChecking=no gcp-key.json ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST_DEV }}:/home/ubuntu/gcp-key.json
 
       - name: Deploy Backend (Develop) via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST_DEV }}
-          username: ${{ secrets.SSH_USER_DEV }}
-          key: ${{ secrets.SSH_PRIVATE_KEY_DEV }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
             echo "GCP 인증 및 Docker 로그인"
@@ -352,14 +351,14 @@ jobs:
       - name: Upload GCP json key to BE Server
         run: |
           echo "${{ secrets.GCP_SA_KEY_PROD_BASE64 }}" | base64 -d > gcp-key.json
-          scp -o StrictHostKeyChecking=no gcp-key.json ${{ secrets.SSH_USER_PROD }}@${{ secrets.SSH_HOST_PROD }}:/home/ubuntu/gcp-key.json
+          scp -o StrictHostKeyChecking=no gcp-key.json ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST_PROD }}:/home/ubuntu/gcp-key.json
 
       - name: Deploy Backend (Prod) via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST_PROD }}
-          username: ${{ secrets.SSH_USER_PROD }}
-          key: ${{ secrets.SSH_PRIVATE_KEY_PROD }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
             echo "GCP 인증 및 Docker 로그인"
